@@ -1,9 +1,9 @@
-from django.core.exceptions import PermissionDenied
 from posts.models import Group, Post
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 
 from .serializers import CommentSerializer, GroupSerializer, PostSerializer
+from .permissions import IsAuthorOrReadOnly
 
 
 class PostViewSet(viewsets.ModelViewSet):
@@ -13,30 +13,19 @@ class PostViewSet(viewsets.ModelViewSet):
         PUT, PATCH, DELETE - доустпуны только авторам постов.
 
     Raises:
-        PermissionDenied: пользователь не является автором поста.
+        IsAuthenticated: создание постов доступно авторизованным юзерам.
+        IsAuthorOrReadOnly: изменение и удаление постов доступно автору.
 
     Returns:
         posts: экземпляр или список постов.
     """
     queryset = Post.objects.all()
     serializer_class = PostSerializer
-    permission_classes = [IsAuthenticated, ]
+    permission_classes = [IsAuthenticated, IsAuthorOrReadOnly, ]
 
     def perform_create(self, serializer):
         """Создание поста."""
         return serializer.save(author=self.request.user)
-
-    def perform_update(self, serializer):
-        """Изменение поста только для автора."""
-        if serializer.instance.author != self.request.user:
-            raise PermissionDenied("Изменение чужого контента запрещено!")
-        return super(PostViewSet, self).perform_update(serializer)
-
-    def perform_destroy(self, serializer):
-        """Удаление поста только для автора."""
-        if serializer.author != self.request.user:
-            raise PermissionDenied("Удаление контента запрещено!")
-        return super(PostViewSet, self).perform_destroy(serializer)
 
 
 class GroupViewSet(viewsets.ReadOnlyModelViewSet):
@@ -59,13 +48,14 @@ class CommentViewSet(viewsets.ModelViewSet):
         PUT, PATCH, DELETE - доустпуны только авторам комментариев.
 
     Raises:
-        PermissionDenied: пользователь не является автором комментария.
+        IsAuthenticated: создание комментария доступно авторизованным юзерам.
+        IsAuthorOrReadOnly: изменение и удаление комментария доступно автору.
 
     Returns:
         comments: экземпляр или список комментариев к посту.
     """
     serializer_class = CommentSerializer
-    permission_classes = [IsAuthenticated, ]
+    permission_classes = [IsAuthenticated, IsAuthorOrReadOnly, ]
 
     def get_queryset(self):
         """Получение комментариев поста."""
@@ -76,15 +66,3 @@ class CommentViewSet(viewsets.ModelViewSet):
         """Создание комментария под постом."""
         post = Post.objects.get(id=self.kwargs.get('post_id'))
         serializer.save(author=self.request.user, post=post)
-
-    def perform_update(self, serializer):
-        """Изменение комментария доступно только автору."""
-        if serializer.instance.author != self.request.user:
-            raise PermissionDenied("Изменение чужого контента запрещено!")
-        return super(CommentViewSet, self).perform_update(serializer)
-
-    def perform_destroy(self, serializer):
-        """Удаление комментария доступно только автору."""
-        if serializer.author != self.request.user:
-            raise PermissionDenied("Удаление контента запрещено!")
-        return super(CommentViewSet, self).perform_destroy(serializer)
